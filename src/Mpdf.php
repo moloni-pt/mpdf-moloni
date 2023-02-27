@@ -1041,7 +1041,11 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 	 */
 	private $container;
 
-	/**
+    /****** Moloni *****/
+    private $counter = [];
+    private $counterOptions = [];
+
+    /**
 	 * @param mixed[] $config
 	 * @param \Mpdf\Container\ContainerInterface|null $container Experimental container to override internal services
 	 */
@@ -13623,6 +13627,27 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 				} // TABLE
 				elseif ($this->tableLevel) {
 					/* -- TABLES -- */
+
+                    /** -- MOLONI | We need to check if it's a PDF ignore tag -- **/
+                    /** {pdfIgnore} - Implementado para definir counters */
+                    if (preg_match('#\\{pdfIgnore\\}(.+)\\{/pdfIgnore\\}#s', $e, $m)) {
+                        $e = str_ireplace($m[0], "", $e);
+                        if (preg_match_all('#\{counter\}([\w\|]+)\{/counter\}#s', $m[1], $counters)) {
+                            foreach ($counters[1] as $counter) {
+                                $options = explode("|", $counter);
+                                $this->cell[$this->row][$this->col]['counters'][] = $options[0];
+
+                                if (!isset($this->counter[$options[0]])) {
+                                    $this->counter[$options[0]] = 0;
+                                    $this->counterOptions[$options[0]] = array(
+                                        "type" => (isset($options[1]) ? $options[1] : "default"),
+                                        "resetOnPage" => (isset($options[2]) && $options[2] == "resetOnPage") ? 1 : 0
+                                    );
+                                }
+                            }
+                        }
+                    }
+
 					if ($this->tdbegin) {
 						if (($this->ignorefollowingspaces) && !$this->ispre) {
 							$e = ltrim($e);
@@ -16101,6 +16126,10 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 			// COLS
 			$oldcolumn = $this->CurrCol;
 			$vetor = isset($arrayaux[$i]) ? $arrayaux[$i] : null;
+
+            /** MOLONI **/
+            $this->savedPositions($vetor[0]);
+
 			if ($i == 0 && $vetor[0] != "\n" && ! $this->ispre) {
 				$vetor[0] = ltrim($vetor[0]);
 				if (!empty($vetor[18])) {
@@ -22240,6 +22269,25 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 
 							$oldcolumn = $this->CurrCol;
 							if ($this->AcceptPageBreak()) {
+
+                                /******** MOLONI ********/
+                                /** Adicionamos no fim da tabela os valores a serem transportados **/
+
+                                if (isset($this->counterOptions['numRows'], $this->counterOptions['pricesTotal']) && $this->counter['numRows'] > 0 && $this->counter['pricesTotal'] > 0) {
+                                    # $this->WriteText($this->x + 20, $this->y + 20, html_entity_decode($this->counter['pricesTotal'] . $this->coinSymbol));
+                                    $this->cellLineHeight;
+                                    $this->SetXY($cMarginR, $y + $y0 + 2.5);
+                                    $this->SetFontSize("6.75");
+                                    $this->SetTextColor(102, 102, 102);
+                                    $this->WriteCell(0, 0, "A transportar " . $this->counter['numRows'] . " de " . (count($cells) - 1 ) . " artigos | " . number_format($this->counter['pricesTotal'], 2) . ($this->coinSymbol ), 0, 0, "R");
+                                }
+
+                                if ($this->counterOptions['numRows']['resetOnPage'] == 1) {
+                                    $this->counterOptions['numRows'] = 0;
+                                }
+
+                                /******** MOLONI END ********/
+
 								$newpagestarted = true;
 								$this->y = $y + $y0;
 
@@ -22928,6 +22976,23 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 									$this->colsums[$j] = $this->toFloat($cell['textbuffer'][0][0]);
 								}
 							}
+
+                            /******** MOLONI ********/
+                            if (isset($cell['counters']) && is_array($cell['counters'])) {
+                                foreach ($cell['counters'] as $name => $counter) {
+                                    switch ($this->counterOptions[$counter]['type']) {
+                                        case "soma" :
+                                            $value = preg_replace("/[^\d,]/", "", $cell['textbuffer'][0][0]);
+                                            $this->counter[$counter] += (float)str_replace(",", ".", $value);
+                                            break;
+
+                                        default:
+                                            $this->counter[$counter] ++;
+                                            break;
+                                    }
+                                }
+                            }
+                            /******** MOLONI END ********/
 						}
 						$opy = $this->y;
 						// mPDF ITERATION
@@ -27520,4 +27585,30 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 		return $html;
 	}
 
+    /**
+     * MOLONI
+     * Verifica se o buffer começa com um savePosition e se começar, guarda o X e o Y da posição
+     * Exemplo: {savePosition}atcude_position{/savePosition}
+     *
+     * @param $string string
+     * @return void
+     */
+    public function savedPositions(&$string)
+    {
+        if (strpos($string, "{savePosition}") === 0) {
+            if (preg_match_all('#\{savePosition}([\w|]+)\{/savePosition}#s', $string, $saveTo)) {
+                if (!isset($this->savedPositions)) {
+                    $this->savedPositions = [];
+                }
+
+                $this->savedPositions[$saveTo[1][0]][$this->page] = [
+                    'y' => $this->y,
+                    'x' => $this->x,
+                    'page' => $this->page,
+                ];
+
+                $string = str_replace($saveTo[0], '', $string);
+            }
+        }
+    }
 }
