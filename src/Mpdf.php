@@ -1047,6 +1047,15 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
     public $savedPositions = [];
     public $aTransportarString = '';
 
+    public $drawFooter = true;
+    public $drawFooterLastPage = false;
+
+    public $foldingLines = false;
+    public $foldingTimes = 2;
+    public $foldingOpacity = 0.2;
+    public $foldingLineBorder = 1;
+    public $foldingLineSize = 4;
+
     /**
      * @param mixed[] $config
      * @param \Mpdf\Container\ContainerInterface|null $container Experimental container to override internal services
@@ -3339,6 +3348,30 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
         $this->divwidth = $bak_dw;
 
         $this->lineheight = $bak_lh;
+
+        if ($this->foldingLines) {
+            $drawY = 0;
+            $this->SetAlpha($this->foldingOpacity);
+            $distance = $this->h / ($this->foldingTimes + 1);
+
+            for ($i = 0; $i <= $this->foldingTimes; $i++) {
+                $drawY += $distance;
+                $this->line(
+                    $this->foldingLineBorder,
+                    $drawY,
+                    $this->foldingLineSize + $this->foldingLineBorder,
+                    $drawY
+                );
+
+                $this->line(
+                    $this->w - $this->foldingLineBorder - $this->foldingLineSize,
+                    $drawY,
+                    $this->w - $this->foldingLineBorder,
+                    $drawY
+                );
+            }
+            $this->SetAlpha(1);
+        }
     }
 
     /**
@@ -22101,7 +22134,14 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
 
         $y = $h = 0;
         for ($i = 0; $i < $numrows; $i++) { // Rows
-            if (isset($table['is_tfoot'][$i]) && $table['is_tfoot'][$i] && $level == 1) {
+
+            $this->drawFooter = true;
+
+            if (!$this->drawFooterLastPage && $i == $numrows) {
+                $this->drawFooter = false;
+            }
+
+            if (isset($table['is_tfoot'][$i]) && $table['is_tfoot'][$i] && $level == 1 && $this->drawFooter) {
                 $tablefooterrowheight += $table['hr'][$i];
                 $tablefooter[$i][0]['trbackground-images'] = $table['trbackground-images'][$i];
                 $tablefooter[$i][0]['trgradients'] = $table['trgradients'][$i];
