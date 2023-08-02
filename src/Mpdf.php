@@ -27146,13 +27146,6 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
             ));
         }
 
-        if (strlen($html) > (int) $limit) {
-            throw new \Mpdf\MpdfException(sprintf(
-                'The HTML code size is larger than pcre.backtrack_limit %d. You should use WriteHTML() with smaller string lengths.',
-                $limit
-            ));
-        }
-
         preg_match_all("/(<annotation.*?>)/si", $html, $m);
         if (count($m[1])) {
             for ($i = 0; $i < count($m[1]); $i++) {
