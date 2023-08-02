@@ -22321,11 +22321,15 @@ class Mpdf implements \Psr\Log\LoggerAwareInterface
                                     $this->SetXY($cMarginR, $y + $y0 + 2.5);
                                     $this->SetFontSize("6.75");
                                     $this->SetTextColor(102, 102, 102);
-                                    $this->WriteCell(0, 0, $this->aTransportarString, 0, 0, "R");
+                                    $string = $this->aTransportarString;
+                                    $string = str_replace("{{numRows}}", $this->counter['numRows'], $string);
+                                    $string = str_replace("{{pricesTotal}}", number_format($this->counter['pricesTotal'], 2, ",", "."), $string);
+
+                                    $this->WriteCell(0, 0, $string, 0, 0, "R");
                                 }
 
                                 if ($this->counterOptions['numRows']['resetOnPage'] == 1) {
-                                    $this->counterOptions['numRows'] = 0;
+                                    $this->counter['numRows'] = 0;
                                 }
 
                                 /******** MOLONI END ********/
